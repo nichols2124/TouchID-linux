@@ -31,6 +31,15 @@ POLKIT_AGENT_CGROUP = re.compile(
     rb"0::/system\.slice/system-polkit\\x2dagent\\x2dhelper\.slice/"
     rb"polkit-agent-helper@(?:[0-9]{1,20}[-_])+([0-9]{1,10})\.service\n?"
 )
+# A login greeter authenticates whichever account is being logged into, which
+# by definition has no session yet -- that is the one claim path that must
+# work without a pre-existing session for the target UID. Trust is bound to
+# the greeter's own singleton systemd unit cgroup, not a per-target-uid
+# instance: only systemd/root can place a process into one of these exact
+# cgroups, so this cannot be spoofed by an unprivileged local process.
+LOGIN_GREETER_CGROUP = re.compile(
+    rb"0::/system\.slice/(?:greetd|gdm|sddm|lightdm)\.service\n?"
+)
 
 
 def _resolve_uid(username: object, resolver: NameResolver) -> int:
@@ -122,6 +131,37 @@ def _is_polkit_agent_helper(
         return reject(f"process-validation-{phase}")
 
 
+def _is_login_greeter(caller: t2_dbus_identity.PinnedDBusCaller) -> bool:
+    """Trust a root caller that is a known system login-greeter service."""
+
+    def reject(reason: str) -> bool:
+        print(f"T2 login greeter rejected during {reason}", flush=True)
+        return False
+
+    subject = caller.subject
+    if subject.uid != t2_linux_account.ROOT_UID or subject.setuid_real_uid is not None:
+        return reject("subject-validation")
+    process_root = caller.proc_root / str(subject.pid)
+    phase = "identity-recheck"
+    try:
+        caller.verify()
+        phase = "cgroup-read"
+        cgroup = t2_polkit_grant._read_bounded(process_root / "cgroup")
+        phase = "cgroup-binding"
+        if LOGIN_GREETER_CGROUP.fullmatch(cgroup) is None:
+            return reject("cgroup-binding")
+        phase = "identity-final-recheck"
+        caller.verify()
+        return True
+    except (
+        OSError,
+        ValueError,
+        t2_dbus_identity.DBusIdentityError,
+        t2_polkit_grant.PolkitGrantError,
+    ):
+        return reject(f"process-validation-{phase}")
+
+
 def _polkit_target_session(
     caller: t2_dbus_identity.PinnedDBusCaller,
     backend: t2_ipc_session.SessionBackend,
@@ -177,6 +217,19 @@ def _session(
         t2_dbus_identity.DBusIdentityError,
         t2_ipc_session.IPCSessionError,
     ) as error:
+        if _is_login_greeter(caller):
+            # The account being logged into has no session yet by
+            # definition; trust is the greeter's own cgroup binding, not a
+            # pre-existing session for this target UID.
+            return t2_ipc_session.SessionEvidence(
+                "login-greeter-trusted",
+                "",
+                "greeter",
+                "greeter",
+                False,
+                0,
+                True,
+            )
         raise FprintClaimError(
             "active local login assertion failed"
         ) from direct_error or error
