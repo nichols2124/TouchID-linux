@@ -616,6 +616,13 @@ cat >/etc/dbus-1/system.d/99-t2-touchid-fprint.conf <<EOF
   <policy context="default"><deny send_destination="net.reactivated.Fprint"/></policy>
   <policy user="root"><allow own="net.reactivated.Fprint"/><allow send_destination="net.reactivated.Fprint"/></policy>
   <policy user="$target_user"><allow send_destination="net.reactivated.Fprint"/></policy>
+  <!-- Known system login-greeter accounts: these only ever authenticate on
+       behalf of the account being logged into, never themselves, and the
+       claim path itself binds the caller to a greeter systemd unit. -->
+  <policy user="greeter"><allow send_destination="net.reactivated.Fprint"/></policy>
+  <policy user="gdm"><allow send_destination="net.reactivated.Fprint"/></policy>
+  <policy user="sddm"><allow send_destination="net.reactivated.Fprint"/></policy>
+  <policy user="lightdm"><allow send_destination="net.reactivated.Fprint"/></policy>
 </busconfig>
 EOF
 chmod 0644 /etc/dbus-1/system.d/99-t2-touchid-fprint.conf
