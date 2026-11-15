@@ -3,6 +3,30 @@
 Touch ID integration for Intel Macs with Apple’s T2 chip, using the standard
 Linux `fprintd` interface.
 
+## This fork
+
+This is [nichols2124/t2touch-niri-patched](https://github.com/nichols2124/t2touch-niri-patched),
+a private fork maintained for a niri + DMS (dux-shell) setup on
+`MacBookPro16,1`. It installs with `install-niri.sh` (PAM skipped by default;
+run `tools/install-pam.sh` separately for sudo/polkit fingerprint auth) and
+carries four fixes beyond upstream `macintog/t2touch`, found and fixed on
+2026-11-14/15: the `--recover-observed-identity` handle lookup (it read
+finger names from the enrollment journal's baseline, which never has them —
+names only live in the committed Catacomb), two bugs in
+`_pending_post_reboot_journal` that made post-reboot verification only ever
+work for a single lifetime enrollment, the post-reboot reconciler treating
+any second completed enrollment as an unresolvable ambiguity, and a new
+login-greeter trust path in `t2_fprint_claim.py` so fingerprint auth can work
+at the greetd/dms-greeter login screen, not just an already-active session.
+We deliberately did not follow upstream's move toward retiring the custom
+`t2-fprintd` backend for a stock-`fprintd`/`libfprint` driver (tracked for
+Omarchy) — this fork keeps and maintains the current backend instead.
+
+Branches track kernel compatibility — see [`BRANCHES.md`](BRANCHES.md).
+`kernel-7.2.x` is the default and the only one currently working;
+`kernel-7.3.x` is blocked on an in-tree `macsmc` driver conflict, documented
+there.
+
 **Don't install or enable T2Touch on a Mac that also runs macOS.** On our
 test Mac, after T2Touch had run, macOS removed the account's Touch ID
 fingerprints and replaced its keybag and login keychain. The old login
