@@ -6,8 +6,9 @@ Linux `fprintd` interface.
 ## This fork
 
 This is [nichols2124/t2touch-niri-patched](https://github.com/nichols2124/t2touch-niri-patched),
-a private fork maintained for a niri + DMS (dux-shell) setup on
-`MacBookPro16,1`. It installs with `install-niri.sh` (PAM skipped by default;
+a private fork originally built for a niri + DMS (dux-shell) setup on
+`MacBookPro16,1`, now installable on any desktop/compositor via
+`install-generic.sh` ([see below](#try-it-on-arch); PAM skipped by default,
 run `tools/install-pam.sh` separately for sudo/polkit fingerprint auth) and
 carries four fixes beyond upstream `macintog/t2touch`, found and fixed on
 2026-11-14/15: the `--recover-observed-identity` handle lookup (it read
@@ -121,6 +122,30 @@ The enrollment command opens the Touch ID terminal interface. Briefly touch and
 lift the same finger as prompted. SEP reports real, non-linear progress; the
 fingerprint graphic fills to match that percentage. Enrollment returns success
 only after the new fingerprint is durable and ready for immediate use.
+
+## Try it on Arch
+
+For any other desktop or compositor (niri, Hyprland, Sway, GNOME, KDE,
+XFCE, or none at all) — no Omarchy integration, no lock-screen UI, and no
+PAM setup done for you. Run as your normal desktop user:
+
+```bash
+git clone https://github.com/macintog/t2touch.git
+cd t2touch
+./install-generic.sh
+```
+
+It installs base dependencies via `pacman`, then runs `install.sh` the same
+way `install-omarchy.sh` does, just without the Omarchy-specific pieces.
+Rerun it when instructed, same as above. After installation completes, log
+out and sign back in, then enroll and verify exactly as in the Omarchy
+section.
+
+Fingerprint PAM for `sudo`/`polkit` is **not** installed automatically here —
+run `sudo tools/install-pam.sh` yourself when ready (it backs up any existing
+PAM stacks before touching them). Wiring up your greeter or lock screen is
+whatever your desktop provides for that; this installer only sets up the
+daemon and fprintd.
 
 Afterward, any enrolled finger can authenticate through:
 

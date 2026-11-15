@@ -39,8 +39,8 @@ if [[ -z ${SUDO_USER:-} || $SUDO_USER == root ]]; then
   echo "Run through sudo from the desktop user that will use Touch ID." >&2
   exit 1
 fi
-if [[ ! $SUDO_USER =~ ^[a-z_][a-z0-9_-]*$ ]]; then
-  echo "SUDO_USER must be a lowercase POSIX username so install and uninstall agree." >&2
+if [[ ! $SUDO_USER =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]; then
+  echo "SUDO_USER must be a POSIX username so install and uninstall agree." >&2
   exit 1
 fi
 
@@ -57,7 +57,7 @@ source "$source_dir/tools/installer-services.sh"
 echo "Building the T2 userspace helpers and transport…" >&2
 if ! make -C "$source_dir/src"; then
   echo "make -C src failed for $(uname -r)." >&2
-  echo "Remedy: install matching kernel headers and the C toolchain, then rerun ./install-omarchy.sh." >&2
+  echo "Remedy: install matching kernel headers and the C toolchain, then rerun this installer (install.sh or your desktop's wrapper for it)." >&2
   exit 2
 fi
 restore_checkout_build_outputs "${SUDO_UID:-}${SUDO_GID:+:${SUDO_GID}}" "$source_dir/src"
@@ -115,7 +115,7 @@ if [[ -d /sys/module/t2_sep_transport ]]; then
         "$verified_installed_transport" || exit $?
     fi
     echo "The running T2 transport differs or cannot be identified; installation stopped." >&2
-    echo "For an identified transport change, run ./install-omarchy.sh --prepare-transport-update, then restart and rerun the installer." >&2
+    echo "For an identified transport change, run \"$0 --prepare-transport-update\", then restart and rerun the installer." >&2
     exit 2
   fi
   live_transport_matches=1
@@ -657,7 +657,7 @@ if command -v dkms >/dev/null 2>&1; then
     if [[ -z $dkms_state ]]; then
       if ! dkms add -m t2-sep-transport -v 0.1.0; then
         echo "t2-sep-transport DKMS add failed for $running_kernel." >&2
-        echo "Remedy: install dkms and matching kernel headers, then rerun ./install-omarchy.sh." >&2
+        echo "Remedy: install dkms and matching kernel headers, then rerun this installer (install.sh or your desktop's wrapper for it)." >&2
         rollback_units_after_dkms_failure /etc/systemd/system /etc/systemd/sleep.conf.d
         exit 2
       fi
@@ -665,7 +665,7 @@ if command -v dkms >/dev/null 2>&1; then
     if ! dkms build --force -m t2-sep-transport -v 0.1.0 -k "$running_kernel" ||
        ! dkms install --force -m t2-sep-transport -v 0.1.0 -k "$running_kernel"; then
       echo "t2-sep-transport DKMS build/install failed for $running_kernel." >&2
-      echo "Remedy: install matching kernel headers for $running_kernel, then rerun ./install-omarchy.sh." >&2
+      echo "Remedy: install matching kernel headers for $running_kernel, then rerun this installer (install.sh or your desktop's wrapper for it)." >&2
       rollback_units_after_dkms_failure /etc/systemd/system /etc/systemd/sleep.conf.d
       exit 2
     fi
@@ -743,7 +743,11 @@ if [[ $authority_mode == linux-native ]]; then
     echo "Touch ID setup did not become ready; run sudo t2-touchid-doctor." >&2
     exit 2
   }
-  "$source_dir/tools/install-pam.sh"
+  if [[ ${T2TOUCH_SKIP_PAM:-0} == 1 ]]; then
+    echo "PAM integration skipped (T2TOUCH_SKIP_PAM=1): only fprintd is set up."
+  else
+    "$source_dir/tools/install-pam.sh"
+  fi
   echo
   if [[ ${T2TOUCH_OMARCHY_WRAPPER:-0} == 1 ]]; then
     echo "t2touch userspace is installed. Finish the Omarchy logout step before enrolling."
