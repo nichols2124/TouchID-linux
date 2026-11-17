@@ -165,7 +165,16 @@ def _pending_native_candidate() -> object | None:
                 history.phase
                 is t2_enrollment_journal.EnrollmentPhase.POST_REBOOT_VERIFIED
             ):
-                candidates.append((path, history))
+                if history.baseline.get("baseline_version") == 2:
+                    candidates.append((path, history))
+                # Else baseline_version 1: an add-finger journal recovered
+                # via --recover-observed-identity (the only way one reaches
+                # POST_REBOOT_VERIFIED). It never needs an authority.json
+                # publication -- that file already exists from the original
+                # enrollment and is untouched by add-finger -- and
+                # t2_mutation_registry treats POST_REBOOT_VERIFIED as
+                # complete regardless of baseline_version, so it is a no-op
+                # here too.
             elif (
                 history.baseline.get("baseline_version") != 2
                 or history.phase

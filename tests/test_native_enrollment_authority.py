@@ -736,7 +736,11 @@ class NativeEnrollmentAuthorityTests(unittest.TestCase):
         mappings = SimpleNamespace(generation=mapping_generation)
         history = SimpleNamespace(
             operation_id=operation_id,
-            baseline={"marker": True, "identity_records": []},
+            baseline={
+                "marker": True,
+                "identity_records": [],
+                "baseline_version": 2,
+            },
         )
         recovery = SimpleNamespace(
             identity_uuid=identity_uuid,

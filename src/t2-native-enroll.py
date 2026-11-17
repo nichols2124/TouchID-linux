@@ -1589,13 +1589,26 @@ def _pending_post_reboot_journal(
         )
     path, history = candidates[0]
     baseline = history.baseline
+    # baseline_version 1 (add-finger) normally exits RECONCILED through
+    # addition match verification or rollback (see
+    # _reconcile_addition_match_result in t2-native-match.py and the
+    # rollback path in t2-touchid-manage.py), never through post-reboot
+    # verification. The one exception is a journal recovered via
+    # --recover-observed-identity after an ambiguous original attempt: that
+    # path adopts the identity from a stable SEP readback instead of a live
+    # capture (t2_enrollment_journal.py's ENROLL_OUTCOME_UNKNOWN stage
+    # "terminal" -> E2_RECOVERY_IDENTITY_READBACK_OBSERVED), so there is no
+    # live match evidence to verify and post-reboot verification is its only
+    # remaining step. outcome_unknown_stage is set once on that path and
+    # never cleared, so it survives as the discriminator here. Every
+    # baseline_version 2 journal (first-ever enrollment on a blank account)
+    # uses this path regardless.
+    recovered_addition = (
+        baseline.get("baseline_version") == 1
+        and history.outcome_unknown_stage == "terminal"
+    )
     if (
-        # baseline_version 1 (add-finger) exits RECONCILED through addition
-        # match verification or rollback (see _reconcile_addition_match_result
-        # in t2-native-match.py and the rollback path in t2-touchid-manage.py),
-        # never through post-reboot verification. Only baseline_version 2
-        # (first-ever enrollment on a blank account) uses this path.
-        baseline.get("baseline_version") != 2
+        (baseline.get("baseline_version") != 2 and not recovered_addition)
         or baseline.get("caller_linux_uid") != selected.linux_uid
         or baseline.get("target_linux_uid") != selected.linux_uid
         or baseline.get("apple_uid") != selected.apple_uid
