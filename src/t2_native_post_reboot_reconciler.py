@@ -288,15 +288,18 @@ def _pending_native_candidate() -> object | None:
                     "existing native runtime authority is invalid"
                 ) from error
         else:
-            if (
-                authority.enrollment_journal.name == path.name
-                and authority.mapping_set.generation
-                == baseline.get("mapping_generation")
-            ):
+            if authority.enrollment_journal.name == path.name:
                 return None
-            raise NativePostRebootReconcilerError(
-                "another native runtime authority is already published"
-            )
+            # A different, successfully-loaded authority is published. With
+            # a single account and no concurrent first-run possible, that can
+            # only mean this baseline_version 2 candidate is an earlier,
+            # superseded first-enrollment that a later enrollment's own
+            # publish() has since moved the authority past -- not a genuine
+            # conflict. (Comparing mapping_set.generation against this
+            # candidate's own historical baseline["mapping_generation"] would
+            # also be wrong here for the same reason removed elsewhere: it
+            # pins to a content-hash that legitimate account rebinds change.)
+            return None
         if later_mutation or any(entry.blocks_new_mutation for entry in registry):
             raise NativePostRebootReconcilerError(
                 "native E4 publication is superseded or blocked"
