@@ -251,7 +251,11 @@ def _load_provisioned_authority(
         or replacement.live_bag_uuid is None
         or activation.phase != "complete"
         or activation.operation_id != replacement.operation_id
-        or activation.enabled_mapping_generation != mapping_set.generation
+        # Not activation.enabled_mapping_generation != mapping_set.generation:
+        # that pins to the mapping file's content-hash at activation time, which
+        # any legitimate account-generation rebind changes. Identity continuity
+        # is already covered by the account_uuid/bag_uuid/keybag/activation-secret
+        # checks below, which don't depend on the mapping file's exact bytes.
         or provisioning.phase != "mapping-enabled"
         or provisioning.record_count != 9
         or provisioning.reboot_linux_boot_uuid is None
@@ -296,7 +300,10 @@ def _load_provisioned_authority(
         "replacement_head_hash": replacement.head_hash,
         "replacement_initial_linux_boot_uuid": replacement.initial_linux_boot_uuid,
         "replacement_final_linux_boot_uuid": final_replacement_boot,
-        "linux_account_generation": selected.linux_account_generation,
+        # Not "linux_account_generation": pinning to the account-generation hash
+        # recorded at activation time breaks on any later legitimate account
+        # rebind. account_uuid/bag_uuid/keybag/activation-secret below already
+        # anchor identity continuity without depending on that hash.
         "target_linux_uid": linux_uid,
         "apple_uid": apple_uid,
         "account_uuid": replacement.new_account_uuid,

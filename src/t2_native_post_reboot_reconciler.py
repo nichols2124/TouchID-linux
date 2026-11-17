@@ -237,12 +237,10 @@ def _pending_native_candidate() -> object | None:
                     candidate_authority = t2_user_authority.load(candidate_uid)
                 except t2_user_authority.UserAuthorityError:
                     continue
-                if (
-                    candidate_authority.enrollment_journal.name
-                    == candidate_path.name
-                    and candidate_authority.mapping_set.generation
-                    == candidate_history.baseline.get("mapping_generation")
-                ):
+                # Matching the journal name is sufficient: load() already
+                # validated this authority is internally consistent (identity
+                # continuity, not a stale mapping-generation pin).
+                if candidate_authority.enrollment_journal.name == candidate_path.name:
                     resolved.append((candidate_path, candidate_history))
             if len(resolved) == 1:
                 return None

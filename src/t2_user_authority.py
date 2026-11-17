@@ -196,7 +196,12 @@ def _bound_history(
         or baseline["apple_uid"] != selected.apple_uid
         or baseline["account_uuid"] != selected.account_uuid
         or baseline["bag_uuid"] != selected.bag_uuid
-        or baseline["mapping_generation"] != mapping_set.generation
+        # Not baseline["mapping_generation"] != mapping_set.generation: that pins
+        # to the mapping file's content-hash at enrollment time, which any
+        # legitimate account-generation rebind (e.g. systemd-sysusers rewriting
+        # /etc/shadow on an unrelated package install) changes. account_uuid/
+        # bag_uuid above already anchor identity continuity independent of the
+        # mapping file's exact bytes.
     ):
         raise UserAuthorityError("runtime authority bindings do not reconcile")
 
