@@ -227,10 +227,10 @@ def _pending_native_candidate() -> object | None:
         if len(candidates) > 1:
             # More than one historical POST_REBOOT_VERIFIED enrollment can
             # legitimately coexist once a second (or later) finger has ever
-            # been enrolled. If exactly one of them is the enrollment the
-            # published runtime authority already reflects, the others are
-            # merely superseded history, not a genuine ambiguity.
-            resolved = []
+            # been enrolled. Any of them that the published runtime authority
+            # already reflects is merely superseded history, not a genuine
+            # ambiguity, so drop those and keep considering what remains.
+            already_published = set()
             for candidate_path, candidate_history in candidates:
                 candidate_uid = candidate_history.baseline.get("target_linux_uid")
                 try:
@@ -241,8 +241,13 @@ def _pending_native_candidate() -> object | None:
                 # validated this authority is internally consistent (identity
                 # continuity, not a stale mapping-generation pin).
                 if candidate_authority.enrollment_journal.name == candidate_path.name:
-                    resolved.append((candidate_path, candidate_history))
-            if len(resolved) == 1:
+                    already_published.add(candidate_path)
+            candidates = [
+                candidate
+                for candidate in candidates
+                if candidate[0] not in already_published
+            ]
+            if not candidates:
                 return None
         if len(candidates) != 1:
             raise NativePostRebootReconcilerError(

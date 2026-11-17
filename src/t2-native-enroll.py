@@ -1590,10 +1590,12 @@ def _pending_post_reboot_journal(
     path, history = candidates[0]
     baseline = history.baseline
     if (
-        # baseline_version 2 is the first-ever enrollment on a blank account
-        # (empty identities/Catacomb); 1 is a normal add-finger baseline with
-        # pre-existing state. Post-reboot verification is valid for either.
-        baseline.get("baseline_version") not in (1, 2)
+        # baseline_version 1 (add-finger) exits RECONCILED through addition
+        # match verification or rollback (see _reconcile_addition_match_result
+        # in t2-native-match.py and the rollback path in t2-touchid-manage.py),
+        # never through post-reboot verification. Only baseline_version 2
+        # (first-ever enrollment on a blank account) uses this path.
+        baseline.get("baseline_version") != 2
         or baseline.get("caller_linux_uid") != selected.linux_uid
         or baseline.get("target_linux_uid") != selected.linux_uid
         or baseline.get("apple_uid") != selected.apple_uid
@@ -2058,23 +2060,32 @@ def _run_observed_identity_recovery(
     # kept only in the committed Catacomb; the journal baseline's
     # identity_records are the bare protocol-level (user_id, uuid) pairs and
     # never carry a name. Resolve existing handles the same way normal
-    # enrollment does in _candidate_native_identity_name.
-    handle_store = t2_catacomb_store.CatacombStore(
-        CATACOMB_ROOT, selected.apple_uid
-    )
-    handle_components = handle_store.read_committed_components()
-    try:
-        handle_local = t2_catacomb_codec.decode_user_catacomb(
-            handle_components[f"user_{selected.apple_uid:08x}.cat"],
-            selected.apple_uid,
+    # enrollment does in _candidate_native_identity_name: baseline_version 2
+    # is a first-ever enrollment on a blank account, so there is no prior
+    # Catacomb to read and the handle set is empty.
+    if history.baseline.get("baseline_version") == 2:
+        current_handles: tuple[str, ...] = ()
+    else:
+        handle_store = t2_catacomb_store.CatacombStore(
+            CATACOMB_ROOT, selected.apple_uid
         )
-    except KeyError as error:
-        raise NativeEnrollmentError(
-            "observed identity recovery baseline is malformed"
-        ) from error
-    current_handles = tuple(
-        identity.name for identity in handle_local.identities
-    )
+        try:
+            handle_components = handle_store.read_committed_components()
+            handle_local = t2_catacomb_codec.decode_user_catacomb(
+                handle_components[f"user_{selected.apple_uid:08x}.cat"],
+                selected.apple_uid,
+            )
+        except (
+            KeyError,
+            t2_catacomb_store.CatacombStoreError,
+            t2_catacomb_codec.CatacombCodecError,
+        ) as error:
+            raise NativeEnrollmentError(
+                "observed identity recovery baseline is malformed"
+            ) from error
+        current_handles = tuple(
+            identity.name for identity in handle_local.identities
+        )
     try:
         current_handles = t2_fprint_identity.ordered(current_handles)
         allocated_identity_name = t2_fprint_sequence.candidate(
