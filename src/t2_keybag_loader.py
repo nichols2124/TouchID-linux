@@ -66,7 +66,7 @@ def _configuration(path: Path = CONFIG) -> str:
     ]
     if (
         len(values) != 1
-        or not re.fullmatch(r"[a-z_][a-z0-9_-]*", values[0])
+        or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", values[0])
         or modes != [t2_user_authority.COMPATIBILITY_MODE]
     ):
         raise KeybagLoaderError("compatibility keybag configuration is invalid")

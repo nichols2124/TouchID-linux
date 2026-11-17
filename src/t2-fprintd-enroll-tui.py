@@ -923,7 +923,7 @@ def main() -> int:
         parser.error("finger must be a neutral numbered handle")
     username = os.environ.get("USER", "")
     if not username or not re.fullmatch(
-        r"[a-z_][a-z0-9_-]{0,31}", username
+        r"[A-Za-z_][A-Za-z0-9_-]{0,31}", username
     ):
         parser.error("desktop username is unavailable")
     ui = EnrollmentUI(

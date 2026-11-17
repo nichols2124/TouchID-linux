@@ -17,7 +17,7 @@ target_home=
 target_uid=
 if [[ -r /etc/t2-touchid.conf ]]; then
   target_user=$(sed -n 's/^T2_TOUCHID_USER=//p' /etc/t2-touchid.conf | tail -n 1)
-  if [[ $target_user =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+  if [[ $target_user =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]; then
     target_home=$(getent passwd "$target_user" | cut -d: -f6)
     target_uid=$(id -u -- "$target_user" 2>/dev/null || true)
   fi
