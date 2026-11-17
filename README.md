@@ -24,9 +24,8 @@ We deliberately did not follow upstream's move toward retiring the custom
 Omarchy) — this fork keeps and maintains the current backend instead.
 
 Branches track kernel compatibility — see [`BRANCHES.md`](BRANCHES.md).
-`kernel-7.2.x` is the default and the only one currently working;
-`kernel-7.3.x` is blocked on an in-tree `macsmc` driver conflict, documented
-there.
+`kernel-7.2.x` is the default; `kernel-7.3.x` also works as of 2026-11-18
+(needed an `applesmc-t2touch` driver-model port, detailed there).
 
 **Don't install or enable T2Touch on a Mac that also runs macOS.** On our
 test Mac, after T2Touch had run, macOS removed the account's Touch ID

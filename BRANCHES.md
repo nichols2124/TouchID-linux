@@ -11,18 +11,31 @@ in ways that don't survive every kernel bump unchanged.
   fix), plus the login-greeter trust path in `t2_fprint_claim.py`. Known
   good on `linux-t2` 7.2.11 (MacBookPro16,1).
 
-- **`kernel-7.3.x`** — work in progress, not yet working. `linux-t2` 7.3.x
+- **`kernel-7.3.x`** — tested working (2026-11-18). `linux-t2` 7.3.x removed
+  the old ACPI driver model (`struct acpi_driver`/`acpi_bus_register_driver`)
+  that `applesmc-t2touch` used; ported it to `platform_driver` (match via
+  `.driver.acpi_match_table`, `ACPI_COMPANION()` to recover the `acpi_device`
+  in probe). This was initially assumed blocked on top of that: 7.3.x also
   ships an in-tree `macsmc` driver stack (`macsmc_core`/`macsmc_acpi`/
   `macsmc_hwmon`/`macsmc_power`/`macsmc_wdt`/`rtc_macsmc`) that claims the
-  `APP0001` ACPI SMC device before T2Touch's own patched `applesmc`
-  (`applesmc-t2touch`) ever gets a chance — so no boot-state publisher,
-  so `t2_sep_transport` never loads cleanly. Also hit the ACPI driver model
-  change on this kernel (`struct acpi_driver`/`acpi_bus_register_driver`
-  removed; a `platform_driver` port compiles fine but still can't bind
-  because `macsmc` already owns the hardware). Real fix needs actual
-  integration with (or displacement of) `macsmc`, not just an API port.
-  Branched from `kernel-7.2.x` at the same commit; no code differs yet,
-  this just marks where that investigation continues.
+  `APP0001` ACPI SMC device before `applesmc-t2touch` ever gets a chance, so
+  the ported module never binds to anything.
+
+  That turned out not to matter. `t2_sep_transport`'s dependency on
+  `applesmc` is purely a module-load-order + module-parameter handshake
+  (`softdep t2_sep_transport pre: applesmc`, boot-state read from
+  `/sys/module/applesmc/parameters/t2_sep_boot_state`) — a kernel module
+  parameter is set as soon as the module *loads*, regardless of whether it
+  ever binds to a device. So `applesmc-t2touch` loading (even unbound, with
+  `macsmc` owning the actual hardware) is sufficient; no integration with or
+  displacement of `macsmc` is needed. Confirmed end-to-end on real hardware:
+  every `t2-touchid-doctor` check passes, `fprintd` runs, and Touch ID works
+  through a real suspend/resume cycle too. `macsmc` keeps the sensor/power/
+  RTC/watchdog functionality `applesmc-t2touch` never provided anyway.
+
+  Only code difference from `kernel-7.2.x`: the `platform_driver` port in
+  `packaging/applesmc-t2touch/applesmc.c`. Everything else tracks the
+  default branch.
 
 Future major kernel bumps that break compatibility again get their own
 `kernel-X.Y.x` branch the same way, branched from whichever branch was

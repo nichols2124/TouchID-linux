@@ -20,6 +20,7 @@
 
 #include <linux/delay.h>
 #include <linux/acpi.h>
+#include <linux/platform_device.h>
 #include <linux/input.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -1113,19 +1114,23 @@ static void applesmc_free_resources(struct applesmc_device *smc);
 static int applesmc_create_modules(struct applesmc_device *smc);
 static void applesmc_destroy_modules(struct applesmc_device *smc);
 
-static int applesmc_add(struct acpi_device *dev)
+static int applesmc_probe(struct platform_device *pdev)
 {
+	struct acpi_device *dev = ACPI_COMPANION(&pdev->dev);
 	struct applesmc_device *smc;
 	int ret;
+
+	if (!dev)
+		return -ENODEV;
 
 	smc = kzalloc(sizeof(struct applesmc_device), GFP_KERNEL);
 	if (!smc)
 		return -ENOMEM;
 	smc->dev = dev;
-	smc->ldev = &dev->dev;
+	smc->ldev = &pdev->dev;
 	mutex_init(&smc->reg.mutex);
 
-	dev_set_drvdata(&dev->dev, smc);
+	platform_set_drvdata(pdev, smc);
 
 	ret = applesmc_init_resources(smc);
 	if (ret)
@@ -1154,16 +1159,16 @@ out_reg:
 out_res:
 	applesmc_free_resources(smc);
 out_mem:
-	dev_set_drvdata(&dev->dev, NULL);
+	platform_set_drvdata(pdev, NULL);
 	mutex_destroy(&smc->reg.mutex);
 	kfree(smc);
 
 	return ret;
 }
 
-static void applesmc_remove(struct acpi_device *dev)
+static void applesmc_remove(struct platform_device *pdev)
 {
-	struct applesmc_device *smc = dev_get_drvdata(&dev->dev);
+	struct applesmc_device *smc = platform_get_drvdata(pdev);
 
 	applesmc_destroy_modules(smc);
 	applesmc_destroy_smcreg(smc);
@@ -1308,22 +1313,20 @@ static const struct acpi_device_id applesmc_ids[] = {
 	{"APP0001", 0},
 	{"", 0},
 };
+MODULE_DEVICE_TABLE(acpi, applesmc_ids);
 
 static const struct dev_pm_ops applesmc_pm_ops = {
 	.resume = applesmc_pm_resume,
 	.restore = applesmc_pm_restore,
 };
 
-static struct acpi_driver applesmc_driver = {
-	.name = "applesmc",
-	.class = "applesmc",
-	.ids = applesmc_ids,
-	.ops = {
-		.add = applesmc_add,
-		.remove = applesmc_remove
-	},
-	.drv = {
-		.pm = &applesmc_pm_ops
+static struct platform_driver applesmc_driver = {
+	.probe = applesmc_probe,
+	.remove = applesmc_remove,
+	.driver = {
+		.name = "applesmc",
+		.acpi_match_table = applesmc_ids,
+		.pm = &applesmc_pm_ops,
 	},
 };
 
@@ -2152,7 +2155,7 @@ static int __init applesmc_init(void)
 		goto out;
 	}
 
-	ret = acpi_bus_register_driver(&applesmc_driver);
+	ret = platform_driver_register(&applesmc_driver);
 	if (ret)
 		goto out;
 
@@ -2165,7 +2168,7 @@ out:
 
 static void __exit applesmc_exit(void)
 {
-	acpi_bus_unregister_driver(&applesmc_driver);
+	platform_driver_unregister(&applesmc_driver);
 }
 
 module_init(applesmc_init);
