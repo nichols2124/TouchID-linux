@@ -356,7 +356,7 @@ class InstallerTests(unittest.TestCase):
     def test_sudo_user_is_validated_before_use(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
         self.assertIn(
-            '[[ ! $SUDO_USER =~ ^[a-z_][a-z0-9_-]*$ ]]', installer
+            '[[ ! $SUDO_USER =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]', installer
         )
         self.assertIn("tools/provision-credential.sh", installer)
         self.assertIn("restore_checkout_build_outputs", installer)

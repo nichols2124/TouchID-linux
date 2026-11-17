@@ -8,7 +8,7 @@
 set -euo pipefail
 (( EUID != 0 )) || { echo "Run as your normal user, not with sudo." >&2; exit 1; }
 src=$(cd -- "$(dirname -- "$0")" && pwd -P)
-headers=$(pacman -Qoq "/usr/lib/modules/$(uname -r)" | sed '/-headers$/d' | sort -u)-headers
+headers=$(pacman -Qoq "/usr/lib/modules/$(uname -r)/vmlinuz")-headers
 sudo pacman -S --needed --noconfirm base-devel dkms fprintd python "$headers"
 set +e
 sudo env T2TOUCH_SKIP_PAM=1 "$src/install.sh" "$@"
