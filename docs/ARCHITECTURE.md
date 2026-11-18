@@ -56,10 +56,14 @@ archives, and service integration. Matching occurs in SEP.
 
 ## Installation and startup
 
-[`install-omarchy.sh`](../install-omarchy.sh) installs dependencies and invokes
-[`install.sh`](../install.sh) for the desktop account. The latter installs the
-Python environment under `/opt/t2-touchid`, DKMS modules, systemd units,
-D-Bus access policy, and reversible PAM integration.
+[`install.sh`](../install.sh) is the single entry point for every desktop. It
+auto-detects Omarchy (`command -v omarchy`) to pick its dependency-install
+command (`omarchy pkg add` vs. `pacman`/`dnf`/`apt-get` directly) and whether
+to run Omarchy-specific display/lock-screen integration and PAM setup
+automatically. It installs the Python environment under `/opt/t2-touchid`,
+DKMS modules, systemd units, D-Bus access policy, and — on Omarchy, or when
+run manually via `tools/install-pam.sh` elsewhere — reversible PAM
+integration.
 
 Before changing installed state, it rejects a different or unidentified
 resident T2 transport. It also requires the running applesmc driver to publish

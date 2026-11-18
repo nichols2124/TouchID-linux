@@ -72,17 +72,16 @@ class MacosGuardTests(unittest.TestCase):
         environment.update(extra)
         return environment
 
-    def guard(self, override=0, confirmed=0, answer=""):
+    def guard(self, override=0, answer=""):
         return subprocess.run(
             [
                 "bash",
                 "-c",
                 'set -euo pipefail; source "$1"; '
-                'refuse_if_macos_possible "$2" "$3"',
+                'refuse_if_macos_possible "$2"',
                 "guard",
                 str(GUARD),
                 str(override),
-                str(confirmed),
             ],
             input=answer,
             env=self.env(),
@@ -157,7 +156,7 @@ class MacosGuardTests(unittest.TestCase):
             [
                 "/bin/bash",
                 "-c",
-                'source "$1"; refuse_if_macos_possible 0 0',
+                'source "$1"; refuse_if_macos_possible 0',
                 "guard",
                 str(GUARD),
             ],
@@ -203,85 +202,36 @@ class MacosGuardTests(unittest.TestCase):
         self.assertLess(prompt.index("Found:\n"),
                         prompt.index(f"To continue, type: {CONFIRMATION}"))
 
-    def test_wrapper_confirmation_needs_the_flag_too(self):
+    def test_install_sh_refuses_before_packages_or_root_check(self):
+        # Covers both package-manager paths: with "omarchy" on PATH (the
+        # omarchy pkg add branch) and without it (the pacman/dnf/apt-get
+        # branches). Either way, the macOS guard must run before any of them,
+        # and before install.sh's own root check.
         self.fake_lsblk(LINUX_ONLY + APFS_PARTITION)
-        self.assertEqual(self.guard(override=1, confirmed=1).returncode, 0)
-        refused = self.guard(override=0, confirmed=1)
-        self.assertEqual(refused.returncode, 1)
-        self.assertIn(REFUSED, refused.stderr)
-
-    def test_omarchy_wrapper_refuses_before_packages_or_sudo(self):
-        self.fake_lsblk(LINUX_ONLY + APFS_PARTITION)
-        self.record_calls("omarchy", "sudo", "pacman", "make", "install", "mkdir")
-        for args in ([], ["--prepare-transport-update"],
-                     ["--prepare-native-recovery"]):
-            with self.subTest(args=args):
-                result = subprocess.run(
-                    ["bash", str(ROOT / "install-omarchy.sh"), *args],
-                    env=self.env(),
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-                self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn(REFUSED, result.stderr)
-                self.assertEqual(self.calls.read_text(encoding="utf-8"), "")
-
-    def test_omarchy_wrapper_passes_override_to_install_sh(self):
-        self.fake_lsblk(LINUX_ONLY + APFS_PARTITION)
-        self.record_calls("omarchy", "sudo", "install", "mkdir", "python3")
-        self.stub(
-            "pacman",
-            'if [[ $1 == -Qoq ]]; then echo linux-t2; fi\nexit 0\n',
+        self.record_calls(
+            "omarchy", "pacman", "dnf", "apt-get", "make", "install", "mkdir",
         )
-        cases = (
-            ([FLAG], ""),
-            (["--prepare-native-recovery", FLAG], "--prepare-native-recovery "),
-        )
-        for args, mode in cases:
-            with self.subTest(args=args):
-                self.calls.write_text("", encoding="utf-8")
-                result = subprocess.run(
-                    ["bash", str(ROOT / "install-omarchy.sh"), *args],
-                    input=f"{CONFIRMATION}\n",
-                    env=self.env(),
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                calls = self.calls.read_text(encoding="utf-8").splitlines()
-                self.assertEqual(
-                    calls[0],
-                    "omarchy pkg add base-devel dkms fprintd python linux-t2-headers",
-                )
-                self.assertEqual(
-                    calls[1],
-                    f"sudo env T2TOUCH_OMARCHY_WRAPPER=1 {ROOT}/install.sh "
-                    f"{mode}{FLAG}",
-                )
-
-    def test_omarchy_wrapper_without_apple_storage_passes_no_flag(self):
-        self.fake_lsblk(LINUX_ONLY)
-        self.record_calls("omarchy", "sudo")
-        self.stub(
-            "pacman",
-            'if [[ $1 == -Qoq ]]; then echo linux-t2; fi\nexit 0\n',
-        )
-        result = subprocess.run(
-            ["bash", str(ROOT / "install-omarchy.sh"), "--prepare-native-recovery"],
-            env=self.env(),
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stderr, "")
-        self.assertIn(
-            f"sudo env T2TOUCH_OMARCHY_WRAPPER=1 {ROOT}/install.sh "
-            "--prepare-native-recovery\n",
-            self.calls.read_text(encoding="utf-8"),
-        )
+        for omarchy_present in (True, False):
+            if not omarchy_present:
+                (self.bin / "omarchy").unlink()
+            with self.subTest(omarchy_present=omarchy_present):
+                for args in ([], ["--prepare-transport-update"],
+                             ["--prepare-native-recovery"]):
+                    with self.subTest(args=args):
+                        self.calls.write_text("", encoding="utf-8")
+                        result = subprocess.run(
+                            ["bash", str(ROOT / "install.sh"), *args],
+                            env=self.env(SUDO_USER="tester"),
+                            text=True,
+                            capture_output=True,
+                            check=False,
+                        )
+                        self.assertEqual(result.returncode, 1, result.stderr)
+                        self.assertIn(REFUSED, result.stderr)
+                        self.assertNotIn("Run with sudo", result.stderr)
+                        self.assertEqual(
+                            self.calls.read_text(encoding="utf-8"), ""
+                        )
 
     def test_install_sh_refuses_before_any_other_step(self):
         self.fake_lsblk(LINUX_ONLY + APFS_PARTITION)
@@ -291,7 +241,7 @@ class MacosGuardTests(unittest.TestCase):
             with self.subTest(args=args):
                 result = subprocess.run(
                     ["bash", str(ROOT / "install.sh"), *args],
-                    env=self.env(SUDO_USER="tester", T2TOUCH_OMARCHY_WRAPPER="1"),
+                    env=self.env(SUDO_USER="tester"),
                     text=True,
                     capture_output=True,
                     check=False,
@@ -333,13 +283,15 @@ class MacosGuardTests(unittest.TestCase):
             confirmed.stderr,
         )
 
-    def test_omarchy_wrapper_wrong_statement_changes_nothing(self):
+    def test_install_sh_wrong_statement_changes_nothing(self):
+        # With "omarchy" on PATH, so a wrong statement must stop before the
+        # omarchy pkg add branch runs, not just before a pacman/dnf/apt-get one.
         self.fake_lsblk(LINUX_ONLY + APFS_PARTITION)
-        self.record_calls("omarchy", "sudo", "pacman", "make", "install", "mkdir")
+        self.record_calls("omarchy", "pacman", "make", "install", "mkdir")
         result = subprocess.run(
-            ["bash", str(ROOT / "install-omarchy.sh"), FLAG],
+            ["bash", str(ROOT / "install.sh"), FLAG],
             input="this Mac runs macOS\n",
-            env=self.env(),
+            env=self.env(SUDO_USER="tester"),
             text=True,
             capture_output=True,
             check=False,
@@ -349,81 +301,53 @@ class MacosGuardTests(unittest.TestCase):
                       result.stderr)
         self.assertEqual(self.calls.read_text(encoding="utf-8"), "")
 
-    def test_omarchy_wrapper_hands_on_flag_only_after_the_statement(self):
-        # Nothing found as the user, so nothing was asked: install.sh must
-        # still ask if its own scan finds Apple storage.
-        self.fake_lsblk(LINUX_ONLY)
-        self.record_calls("omarchy", "sudo")
-        self.stub(
-            "pacman",
-            'if [[ $1 == -Qoq ]]; then echo linux-t2; fi\nexit 0\n',
-        )
-        result = subprocess.run(
-            ["bash", str(ROOT / "install-omarchy.sh"),
-             "--prepare-native-recovery", FLAG],
-            env=self.env(),
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stderr, "")
-        self.assertIn(
-            f"sudo env T2TOUCH_OMARCHY_WRAPPER=1 {ROOT}/install.sh "
-            "--prepare-native-recovery\n",
-            self.calls.read_text(encoding="utf-8"),
-        )
-
     def test_install_sh_continues_past_guard_without_apple_storage(self):
+        # The override flag is harmless (no prompt fires) when nothing was
+        # found, whether or not it was actually needed.
         self.fake_lsblk(LINUX_ONLY)
-        result = subprocess.run(
-            ["bash", str(ROOT / "install.sh")],
-            env=self.env(),
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        # The next check, for root, stops the unprivileged test run.
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, "Run with sudo: sudo ./install.sh\n")
+        for args in ([], [FLAG], ["--prepare-native-recovery", FLAG]):
+            with self.subTest(args=args):
+                result = subprocess.run(
+                    ["bash", str(ROOT / "install.sh"), *args],
+                    env=self.env(),
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                # The next check, for root, stops the unprivileged test run.
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(
+                    result.stderr, "Run with sudo: sudo ./install.sh\n"
+                )
 
     def test_installers_reject_unknown_or_repeated_arguments(self):
         self.fake_lsblk(LINUX_ONLY)
-        self.record_calls("omarchy", "sudo", "pacman")
-        for script in ("install-omarchy.sh", "install.sh"):
-            for args in (
-                ["--unknown"],
-                [FLAG, FLAG],
-                ["--prepare-transport-update", "--prepare-native-recovery"],
-            ):
-                with self.subTest(script=script, args=args):
-                    result = subprocess.run(
-                        ["bash", str(ROOT / script), *args],
-                        env=self.env(),
-                        text=True,
-                        capture_output=True,
-                        check=False,
-                    )
-                    self.assertEqual(result.returncode, 2)
-                    self.assertIn("Usage:", result.stderr)
-                    self.assertFalse(Path(f"{self.calls}.lsblk").exists())
-                    self.assertEqual(self.calls.read_text(encoding="utf-8"), "")
+        self.record_calls("omarchy", "pacman")
+        for args in (
+            ["--unknown"],
+            [FLAG, FLAG],
+            ["--prepare-transport-update", "--prepare-native-recovery"],
+        ):
+            with self.subTest(args=args):
+                result = subprocess.run(
+                    ["bash", str(ROOT / "install.sh"), *args],
+                    env=self.env(),
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("Usage:", result.stderr)
+                self.assertFalse(Path(f"{self.calls}.lsblk").exists())
+                self.assertEqual(self.calls.read_text(encoding="utf-8"), "")
 
     def test_guard_precedes_every_installer_change(self):
-        wrapper = (ROOT / "install-omarchy.sh").read_text(encoding="utf-8")
-        guard = 'refuse_if_macos_possible "$macos_override" 0 || exit 1'
-        self.assertLess(wrapper.index(guard), wrapper.index("pacman -Qoq"))
-        self.assertLess(wrapper.index(guard), wrapper.index("omarchy pkg add"))
-        self.assertLess(wrapper.index(guard), wrapper.index("sudo "))
-
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
-        guard = (
-            'refuse_if_macos_possible "$macos_override" '
-            '"$macos_override_confirmed" || exit 1'
-        )
+        guard = 'refuse_if_macos_possible "$macos_override" || exit 1'
         for later in (
             "if [[ $EUID -ne 0 ]]",
             'source "$source_dir/tools/installer-kernel.sh"',
+            "install_dependencies",
             'make -C "$source_dir/src"',
             "prepare_transport_update",
             "target_dir=/opt/t2-touchid",

@@ -35,14 +35,14 @@ Use the corrected source. The resident transport must not be unbound or force
 unloaded. Run:
 
 ```bash
-./install-omarchy.sh --prepare-transport-update
+sudo ./install.sh --prepare-transport-update
 ```
 
 This preserves private identity state and prepares the transport update.
 Restart when convenient, then run:
 
 ```bash
-./install-omarchy.sh
+sudo ./install.sh
 ```
 
 First-run resumes the saved provisioning journal. Do not remove that journal,

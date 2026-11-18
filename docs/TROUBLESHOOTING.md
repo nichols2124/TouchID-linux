@@ -17,7 +17,7 @@ reports failed components without exposing keybag or biometric identifiers.
 The running kernel must publish typed SEP boot state through applesmc. If that
 publisher is absent, the installer stages the included DKMS prerequisite and
 stops before changing biometric, PAM, or service state. Restart at a convenient
-time, then rerun `./install-omarchy.sh` as your desktop account.
+time, then rerun `sudo ./install.sh` as your desktop account.
 
 A module installed on disk does not establish that the currently running
 kernel has the capability. The installer checks the live driver.
@@ -87,9 +87,9 @@ When updating an installation that has the old transport loaded, use:
 
 ```bash
 git pull --ff-only
-./install-omarchy.sh --prepare-transport-update
+sudo ./install.sh --prepare-transport-update
 # Restart when the preparation command requests it.
-./install-omarchy.sh
+sudo ./install.sh
 ```
 
 Keep `/var/lib/t2-touchid` and its journals intact. An interrupted
@@ -145,7 +145,7 @@ mistake the empty inventory for an external deletion. Preserve private state
 and journals under the installer's persistent service hold:
 
 ```bash
-./install-omarchy.sh --prepare-native-recovery
+sudo ./install.sh --prepare-native-recovery
 sudo t2-touchid-manage status
 ```
 
@@ -306,7 +306,7 @@ Replace the transport by removing the incomplete installation instead:
 sudo ./uninstall.sh
 # Restart.
 git pull --ff-only
-./install-omarchy.sh
+sudo ./install.sh
 ```
 
 `uninstall.sh` disables the transport for the next boot and removes its DKMS
@@ -314,7 +314,7 @@ module. It leaves the resident transport loaded until the restart and keeps
 `/var/lib/t2-touchid`. After the restart no T2Touch transport is resident, so
 the installer can build and load the new one. If the running kernel lacks the
 applesmc boot-state publisher, the installer stages it again and requests one
-more restart; restart and rerun `./install-omarchy.sh`.
+more restart; restart and rerun `sudo ./install.sh`.
 
 Do not delete `/var/lib/t2-touchid` to start over. If first run reported an
 ambiguous or outcome-unknown operation, its journal is recovery evidence;

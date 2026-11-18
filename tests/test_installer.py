@@ -13,6 +13,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class InstallerTests(unittest.TestCase):
+    def test_dependency_bootstrap_covers_every_package_manager(self):
+        installer = (ROOT / "install.sh").read_text(encoding="utf-8")
+        self.assertIn("if (( is_omarchy )); then", installer)
+        self.assertIn("omarchy pkg add base-devel dkms fprintd python", installer)
+        self.assertIn("elif command -v pacman >/dev/null 2>&1; then", installer)
+        self.assertIn(
+            "pacman -S --needed --noconfirm base-devel dkms fprintd python",
+            installer,
+        )
+        self.assertIn("elif command -v dnf >/dev/null 2>&1; then", installer)
+        self.assertIn("dnf install -y dkms fprintd python3", installer)
+        self.assertIn("elif command -v apt-get >/dev/null 2>&1; then", installer)
+        self.assertIn("apt-get install -y dkms fprintd python3", installer)
+        self.assertLess(
+            installer.index("install_dependencies()"),
+            installer.index('make -C "$source_dir/src"'),
+        )
+        self.assertLess(
+            installer.index("install_dependencies"),
+            installer.index('make -C "$source_dir/src"'),
+        )
+
     def test_kernel_gate_precedes_product_writes(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
         self.assertLess(
@@ -277,10 +299,9 @@ class InstallerTests(unittest.TestCase):
 
     def test_first_install_requires_logout_before_enroll(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
-        wrapper = (ROOT / "install-omarchy.sh").read_text(encoding="utf-8")
-        self.assertIn("T2TOUCH_OMARCHY_WRAPPER=1", wrapper)
-        self.assertIn("Log out and sign back in now, then run: t2-touchid-enroll", wrapper)
-        self.assertIn("NEXT STEP", wrapper)
+        self.assertIn("is_omarchy=0", installer)
+        self.assertIn("Log out and sign back in now, then run: t2-touchid-enroll", installer)
+        self.assertIn("NEXT STEP", installer)
         self.assertNotIn(
             "t2touch is ready. Enroll a fingerprint with:",
             installer,

@@ -8,9 +8,9 @@ Linux `fprintd` interface.
 This is [nichols2124/t2touch-niri-patched](https://github.com/nichols2124/t2touch-niri-patched),
 a private fork originally built for a niri + DMS (dux-shell) setup on
 `MacBookPro16,1`, now installable on any desktop/compositor via
-`install-generic.sh` ([see below](#try-it-on-arch); PAM skipped by default,
-run `tools/install-pam.sh` separately for sudo/polkit fingerprint auth) and
-carries four fixes beyond upstream `macintog/t2touch`, found and fixed on
+`sudo ./install.sh` ([see below](#try-it-on-arch); PAM skipped by default
+outside Omarchy, run `tools/install-pam.sh` separately for sudo/polkit
+fingerprint auth) and carries four fixes beyond upstream `macintog/t2touch`, found and fixed on
 2026-11-14/15: the `--recover-observed-identity` handle lookup (it read
 finger names from the enrollment journal's baseline, which never has them —
 names only live in the committed Catacomb), two bugs in
@@ -25,7 +25,11 @@ Omarchy) — this fork keeps and maintains the current backend instead.
 
 Branches track kernel compatibility — see [`BRANCHES.md`](BRANCHES.md).
 `kernel-7.2.x` is the default; `kernel-7.3.x` also works as of 2026-11-18
-(needed an `applesmc-t2touch` driver-model port, detailed there).
+(needed an `applesmc-t2touch` driver-model port, detailed there). **Check
+`uname -r` before cloning or switching branches:** use `kernel-7.2.x` on
+`linux-t2` 7.2 or lower, `kernel-7.3.x` on 7.3 or higher. This is a stopgap
+until the two branches are reconciled into one that detects the running
+kernel itself — a future kernel bump may need its own branch the same way.
 
 **Don't install or enable T2Touch on a Mac that also runs macOS.** On our
 test Mac, after T2Touch had run, macOS removed the account's Touch ID
@@ -62,8 +66,8 @@ keychain, where macOS keeps saved passwords, no longer opens with the
 account's password. Until the cause is known, T2Touch is for Macs that run
 only Linux.
 
-Since 0.1.2, both installers look for Apple storage before they change
-anything. They list every disk and partition with `lsblk`, which doesn't need
+Since 0.1.2, the installer looks for Apple storage before it changes
+anything. It lists every disk and partition with `lsblk`, which doesn't need
 root. If any is APFS, HFS+ or Core Storage, or the disks or a partition's type
 can't be read, the installer stops. It explains the risk first, then says what
 it found. It installs no packages and changes no files, services or PAM
@@ -75,7 +79,7 @@ macOS from any disk, add `--this-mac-does-not-run-macos` and type
 `this Mac does not run macOS` when asked:
 
 ```bash
-./install-omarchy.sh --this-mac-does-not-run-macos
+sudo ./install.sh --this-mac-does-not-run-macos
 ```
 
 Add the flag to every run, including the reruns the installer asks for.
@@ -85,19 +89,22 @@ Mac where macOS might be present, the installer refuses to upgrade it as well.
 
 ## Try it on Omarchy
 
-Run as your normal Omarchy desktop user:
-
 ```bash
 git clone https://github.com/macintog/t2touch.git
 cd t2touch
-./install-omarchy.sh
+sudo ./install.sh
 ```
+
+Run with `sudo` from your normal Omarchy desktop user; `install.sh`
+auto-detects Omarchy (via `command -v omarchy`) and installs dependencies with
+`omarchy pkg add`, enables the Omarchy-specific display and lock-screen UI
+integration, and runs PAM setup automatically.
 
 Follow the installer’s instructions, including any restart or recovery steps.
 Rerun the installer when instructed:
 
 ```bash
-./install-omarchy.sh
+sudo ./install.sh
 ```
 
 After installation completes, **log out and sign back in**.
@@ -126,19 +133,19 @@ only after the new fingerprint is durable and ready for immediate use.
 
 For any other desktop or compositor (niri, Hyprland, Sway, GNOME, KDE,
 XFCE, or none at all) — no Omarchy integration, no lock-screen UI, and no
-PAM setup done for you. Run as your normal desktop user:
+PAM setup done for you. Run the same command as above, with `sudo`:
 
 ```bash
 git clone https://github.com/macintog/t2touch.git
 cd t2touch
-./install-generic.sh
+sudo ./install.sh
 ```
 
-It installs base dependencies via `pacman`, then runs `install.sh` the same
-way `install-omarchy.sh` does, just without the Omarchy-specific pieces.
-Rerun it when instructed, same as above. After installation completes, log
-out and sign back in, then enroll and verify exactly as in the Omarchy
-section.
+Without Omarchy detected, `install.sh` installs `base-devel`, `dkms`,
+`fprintd`, Python, and matching kernel headers via `pacman` directly, and
+skips the Omarchy-specific pieces. Rerun it when instructed, same as above.
+After installation completes, log out and sign back in, then enroll and
+verify exactly as in the Omarchy section.
 
 Fingerprint PAM for `sudo`/`polkit` is **not** installed automatically here —
 run `sudo tools/install-pam.sh` yourself when ready (it backs up any existing
@@ -268,7 +275,7 @@ and installs reversible PAM integration.
 If the running `applesmc` driver lacks the boot-state publisher, the first
 installer run stages the included `applesmc-t2touch` DKMS prerequisite and
 stops before changing biometric, PAM, or service state. Follow the installer’s
-restart or recovery instructions, then rerun `./install-omarchy.sh`. The installer never reboots the machine itself.
+restart or recovery instructions, then rerun `sudo ./install.sh`. The installer never reboots the machine itself.
 
 The installer exits `3` when a reboot is required before it can continue
 (staging the applesmc boot-state publisher, or `--prepare-transport-update`).

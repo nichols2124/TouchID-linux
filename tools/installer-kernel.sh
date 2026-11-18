@@ -3,6 +3,24 @@
 # Sourced by install.sh; functions are also exercised by hardware-free fixtures.
 # shellcheck disable=SC2154 # source_dir is supplied by the sourcing caller.
 
+# Query .../vmlinuz, not the module directory: the directory is owned by
+# every installed extramodules package too (nvidia, broadcom-wl, VirtualBox
+# guest/host modules, ...), which would make this match more than one
+# package. Only the kernel package itself owns vmlinuz.
+detect_arch_kernel_headers_package() {
+  local running_kernel=$1
+  local -a kernel_packages
+  mapfile -t kernel_packages < <(
+    pacman -Qoq "/usr/lib/modules/$running_kernel/vmlinuz" 2>/dev/null |
+      sed '/-headers$/d' | sort -u
+  )
+  if (( ${#kernel_packages[@]} != 1 )); then
+    echo "Could not identify the package for the running kernel." >&2
+    return 1
+  fi
+  echo "${kernel_packages[0]}-headers"
+}
+
 require_t2_hardware() {
   # Cheap presence gate used before applesmc DKMS or boot-image writes.
   # Prefer the SEP mailbox PCI ID from the transport driver, then the T2
@@ -99,20 +117,20 @@ stage_applesmc_prerequisite() {
   if [[ -z $dkms_state ]]; then
     dkms add -m "$package_name" -v "$package_version" || {
       echo "applesmc-t2touch DKMS add failed." >&2
-      echo "Remedy: install dkms and matching kernel headers, then rerun ./install-omarchy.sh." >&2
+      echo "Remedy: install dkms and matching kernel headers, then rerun ./install.sh." >&2
       return 1
     }
   fi
   dkms build --force -m "$package_name" -v "$package_version" \
     -k "$running_kernel" || {
     echo "applesmc-t2touch DKMS build failed for $running_kernel." >&2
-    echo "Remedy: install matching kernel headers, then rerun ./install-omarchy.sh." >&2
+    echo "Remedy: install matching kernel headers, then rerun ./install.sh." >&2
     return 1
   }
   dkms install --force -m "$package_name" -v "$package_version" \
     -k "$running_kernel" || {
     echo "applesmc-t2touch DKMS install failed for $running_kernel." >&2
-    echo "Remedy: install matching kernel headers, then rerun ./install-omarchy.sh." >&2
+    echo "Remedy: install matching kernel headers, then rerun ./install.sh." >&2
     return 1
   }
   printf '%s\n' "$source_hash" >"$dkms_stamp" || return 1
@@ -208,8 +226,8 @@ check_applesmc_prerequisite() {
     absent|disabled)
       ensure_applesmc_on_disk || return 2
       enable_applesmc_next_boot || return 2
-      echo "Restart when convenient, then rerun ./install-omarchy.sh." >&2
-      emit_next_step "Restart when convenient, then rerun ./install-omarchy.sh."
+      echo "Restart when convenient, then rerun ./install.sh." >&2
+      emit_next_step "Restart when convenient, then rerun ./install.sh."
       return 3
       ;;
     *)
@@ -254,8 +272,8 @@ prepare_transport_update() {
   "$source_dir/uninstall.sh" || return 2
   ensure_applesmc_on_disk || return 2
   enable_applesmc_next_boot || return 2
-  echo "Transport update prepared. Restart, then rerun ./install-omarchy.sh." >&2
-  emit_next_step "Restart, then rerun ./install-omarchy.sh."
+  echo "Transport update prepared. Restart, then rerun ./install.sh." >&2
+  emit_next_step "Restart, then rerun ./install.sh."
   return 3
 }
 
