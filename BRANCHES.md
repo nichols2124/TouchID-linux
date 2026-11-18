@@ -37,6 +37,14 @@ in ways that don't survive every kernel bump unchanged.
   `packaging/applesmc-t2touch/applesmc.c`. Everything else tracks the
   default branch.
 
+## Which branch to use
+
+Check `uname -r` before cloning or switching: use `kernel-7.2.x` on `linux-t2`
+7.2 or lower, `kernel-7.3.x` on 7.3 or higher. Nothing currently auto-detects
+the running kernel and picks the right branch, so getting this wrong means an
+`applesmc-t2touch` build that doesn't match your kernel's driver model. This
+is a stopgap until the two branches are reconciled into one.
+
 Future major kernel bumps that break compatibility again get their own
 `kernel-X.Y.x` branch the same way, branched from whichever branch was
 `main`/default at the time.

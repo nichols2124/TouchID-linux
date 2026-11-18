@@ -25,7 +25,11 @@ Omarchy) — this fork keeps and maintains the current backend instead.
 
 Branches track kernel compatibility — see [`BRANCHES.md`](BRANCHES.md).
 `kernel-7.2.x` is the default; `kernel-7.3.x` also works as of 2026-11-18
-(needed an `applesmc-t2touch` driver-model port, detailed there).
+(needed an `applesmc-t2touch` driver-model port, detailed there). **Check
+`uname -r` before cloning or switching branches:** use `kernel-7.2.x` on
+`linux-t2` 7.2 or lower, `kernel-7.3.x` on 7.3 or higher. This is a stopgap
+until the two branches are reconciled into one that detects the running
+kernel itself — a future kernel bump may need its own branch the same way.
 
 **Don't install or enable T2Touch on a Mac that also runs macOS.** On our
 test Mac, after T2Touch had run, macOS removed the account's Touch ID
