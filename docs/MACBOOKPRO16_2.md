@@ -25,7 +25,7 @@ cat /sys/module/t2_sep_transport/parameters/identity_create_version
 ```
 
 If an older transport is already resident, use
-`./install-omarchy.sh --prepare-transport-update`, restart when instructed, and
+`sudo ./install.sh --prepare-transport-update`, restart when instructed, and
 resume installation. Do not unload a SEP-pinned transport to switch versions.
 
 The parameter is read-only after load. Kernel and userspace enforce the selected
@@ -41,7 +41,7 @@ wire format and firmware evidence.
 
 ## Recover an interrupted installation
 
-`./install-omarchy.sh --prepare-native-recovery` installs the software and loads
+`sudo ./install.sh --prepare-native-recovery` installs the software and loads
 the transport after network readiness while preserving journals and private
 state. It holds automatic first-run, biometric readiness and reconciliation,
 adaptive sync, and fprintd activation, including across reboot and D-Bus

@@ -8,7 +8,7 @@ Update to the corrected source and run the ordinary installer:
 
 ```bash
 git pull --ff-only
-./install-omarchy.sh
+sudo ./install.sh
 ```
 
 Startup selects one interrupted deletion only when no other mutation is pending.

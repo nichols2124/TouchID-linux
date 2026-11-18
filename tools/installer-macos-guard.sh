@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-only
-# Sourced by install-omarchy.sh and install.sh before either changes anything.
+# Sourced by install.sh before it changes anything.
 # On a Mac that also runs macOS, macOS removed the account's Touch ID
 # fingerprints and replaced its keybag and login keychain after T2Touch had run
 # in Linux. Refuse wherever Apple storage shows macOS might be present, unless
@@ -8,8 +8,6 @@
 
 macos_guard_override_flag=--this-mac-does-not-run-macos
 macos_guard_confirmation="this Mac does not run macOS"
-# Set to 1 once the user has typed the statement in this process.
-macos_guard_statement_taken=0
 # Shown first in both the refusal and the override prompt.
 macos_guard_harm="On our test Mac, after T2Touch had run in Linux, macOS removed the account's
 Touch ID fingerprints and replaced its keybag. It also replaced the login
@@ -71,16 +69,12 @@ find_macos_guard_storage() {
   done <<<"$listing"
 }
 
-# Usage: refuse_if_macos_possible OVERRIDE CONFIRMED
-# OVERRIDE is 1 when the user passed the override flag. CONFIRMED is 1 when
-# the Omarchy wrapper already took the typed confirmation for this run.
+# Usage: refuse_if_macos_possible OVERRIDE
+# OVERRIDE is 1 when the user passed the override flag.
 refuse_if_macos_possible() {
-  local override=$1 confirmed=$2 findings answer
+  local override=$1 findings answer
   findings=$(find_macos_guard_storage)
   [[ -n $findings ]] || return 0
-  if (( override && confirmed )); then
-    return 0
-  fi
   if (( ! override )); then
     printf '%s\n' \
       "Stopped before changing anything: T2Touch can't rule out macOS on this Mac." \
@@ -103,6 +97,4 @@ refuse_if_macos_possible() {
     echo "Not confirmed. Stopped before changing anything." >&2
     return 1
   fi
-  # shellcheck disable=SC2034 # install-omarchy.sh reads it.
-  macos_guard_statement_taken=1
 }

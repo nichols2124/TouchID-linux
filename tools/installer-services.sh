@@ -26,7 +26,7 @@ start_touchid_stage() {
     echo "Account rebinding is intentionally never automatic." >&2
   elif [[ $unit == t2-touchid-post-reboot.service ]]; then
     echo "For retained-master recovery, preserve state under the service hold:" >&2
-    echo "  ./install-omarchy.sh --prepare-native-recovery" >&2
+    echo "  ./install.sh --prepare-native-recovery" >&2
     echo "  sudo t2-touchid-manage status" >&2
     echo "Component recreation is not qualified to preserve fingerprints; see docs/RECOVERY_RELEASE_GATE.md." >&2
     echo "Do not repeat normal setup or accept fingerprint loss merely to clear this gate." >&2

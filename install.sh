@@ -23,13 +23,12 @@ for arg in "$@"; do
 done
 
 source_dir=$(cd -- "$(dirname -- "$0")" && pwd -P)
+is_omarchy=0
+command -v omarchy >/dev/null 2>&1 && is_omarchy=1
 # Before any check that could hide it, and before this run changes anything.
-# The Omarchy wrapper has already taken the typed override confirmation.
 # shellcheck source=tools/installer-macos-guard.sh
 source "$source_dir/tools/installer-macos-guard.sh"
-macos_override_confirmed=0
-[[ ${T2TOUCH_OMARCHY_WRAPPER:-0} != 1 ]] || macos_override_confirmed=1
-refuse_if_macos_possible "$macos_override" "$macos_override_confirmed" || exit 1
+refuse_if_macos_possible "$macos_override" || exit 1
 
 if [[ $EUID -ne 0 ]]; then
   echo "Run with sudo: sudo ./install.sh" >&2
@@ -51,13 +50,34 @@ source "$source_dir/tools/installer-kernel.sh"
 # shellcheck source=tools/installer-services.sh
 source "$source_dir/tools/installer-services.sh"
 
+install_dependencies() {
+  local headers_package
+  if (( is_omarchy )); then
+    headers_package=$(detect_arch_kernel_headers_package "$running_kernel") || exit 1
+    omarchy pkg add base-devel dkms fprintd python "$headers_package"
+  elif command -v pacman >/dev/null 2>&1; then
+    headers_package=$(detect_arch_kernel_headers_package "$running_kernel") || exit 1
+    pacman -S --needed --noconfirm base-devel dkms fprintd python "$headers_package"
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y dkms fprintd python3 gcc make \
+      "kernel-devel-$running_kernel" "kernel-headers-$running_kernel"
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt-get install -y dkms fprintd python3 build-essential \
+      "linux-headers-$running_kernel"
+  else
+    echo "Unknown package manager: install dkms, fprintd, python3, a C toolchain, and kernel headers for $running_kernel yourself, then rerun." >&2
+    exit 1
+  fi
+}
+install_dependencies
+
 # Build and compare against the running module before changing installed
 # files, configuration, DKMS stamps, or service state. A disk source stamp
 # describes the next load, not the module already resident in this kernel.
 echo "Building the T2 userspace helpers and transport…" >&2
 if ! make -C "$source_dir/src"; then
   echo "make -C src failed for $(uname -r)." >&2
-  echo "Remedy: install matching kernel headers and the C toolchain, then rerun this installer (install.sh or your desktop's wrapper for it)." >&2
+  echo "Remedy: install matching kernel headers and the C toolchain, then rerun this installer (sudo ./install.sh)." >&2
   exit 2
 fi
 restore_checkout_build_outputs "${SUDO_UID:-}${SUDO_GID:+:${SUDO_GID}}" "$source_dir/src"
@@ -653,7 +673,7 @@ if command -v dkms >/dev/null 2>&1; then
     if [[ -z $dkms_state ]]; then
       if ! dkms add -m t2-sep-transport -v 0.1.0; then
         echo "t2-sep-transport DKMS add failed for $running_kernel." >&2
-        echo "Remedy: install dkms and matching kernel headers, then rerun this installer (install.sh or your desktop's wrapper for it)." >&2
+        echo "Remedy: install dkms and matching kernel headers, then rerun this installer (sudo ./install.sh)." >&2
         rollback_units_after_dkms_failure /etc/systemd/system /etc/systemd/sleep.conf.d
         exit 2
       fi
@@ -661,7 +681,7 @@ if command -v dkms >/dev/null 2>&1; then
     if ! dkms build --force -m t2-sep-transport -v 0.1.0 -k "$running_kernel" ||
        ! dkms install --force -m t2-sep-transport -v 0.1.0 -k "$running_kernel"; then
       echo "t2-sep-transport DKMS build/install failed for $running_kernel." >&2
-      echo "Remedy: install matching kernel headers for $running_kernel, then rerun this installer (install.sh or your desktop's wrapper for it)." >&2
+      echo "Remedy: install matching kernel headers for $running_kernel, then rerun this installer (sudo ./install.sh)." >&2
       rollback_units_after_dkms_failure /etc/systemd/system /etc/systemd/sleep.conf.d
       exit 2
     fi
@@ -739,14 +759,28 @@ if [[ $authority_mode == linux-native ]]; then
     echo "Touch ID setup did not become ready; run sudo t2-touchid-doctor." >&2
     exit 2
   }
-  if [[ ${T2TOUCH_SKIP_PAM:-0} == 1 ]]; then
-    echo "PAM integration skipped (T2TOUCH_SKIP_PAM=1): only fprintd is set up."
-  else
+  if (( is_omarchy )); then
     "$source_dir/tools/install-pam.sh"
+  else
+    echo "PAM integration skipped: only fprintd is set up. Run tools/install-pam.sh yourself for PAM (sudo/polkit); wire up your greeter/lock screen separately (e.g. dux-shell's \`dms-greeter sync --auth\`)."
   fi
   echo
-  if [[ ${T2TOUCH_OMARCHY_WRAPPER:-0} == 1 ]]; then
+  if (( is_omarchy )); then
+    # UWSM reads this on the next graphical login. Resolve devices on that
+    # machine at that login; DRM card numbers and PCI addresses are not
+    # portable.
+    env_dir=$target_home/.config/uwsm/env-hyprland.d
+    install -d -o "$target_user" -g "$target_gid" -m 0755 "$env_dir"
+    install -o "$target_user" -g "$target_gid" -m 0644 \
+      "$source_dir/src/t2-hyprland-drm-devices.sh" "$env_dir/20-t2touch-drm-devices.sh"
+    echo "Omarchy display compatibility installed; it takes effect at your next login."
+    python3 "$source_dir/tools/install-omarchy-lock-ui.py" "${OMARCHY_PATH:-/usr/share/omarchy}"
+    echo
     echo "t2touch userspace is installed. Finish the Omarchy logout step before enrolling."
+    echo
+    echo "NEXT STEP"
+    echo "Log out and sign back in now, then run: t2-touchid-enroll"
+    echo "Enrolling in this session can skip the permission prompt."
   else
     echo "t2touch is installed. Log out and sign back in, then enroll a fingerprint with:"
     echo "  t2-touchid-enroll"

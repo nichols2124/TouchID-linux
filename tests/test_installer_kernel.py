@@ -12,6 +12,35 @@ HELPER = ROOT / "tools/installer-kernel.sh"
 
 
 class KernelPrerequisiteTests(unittest.TestCase):
+    def test_detect_arch_kernel_headers_package(self):
+        # Query .../vmlinuz, not the module directory: the directory is also
+        # owned by any installed extramodules package (nvidia, broadcom-wl,
+        # VirtualBox host/guest modules, ...), which would make a directory
+        # query match more than one package.
+        cases = (
+            ("echo linux-t2\n", 0, "linux-t2-headers", 0),
+            ("printf 'linux-t2\\nvirtualbox-host-modules-arch\\n'\n", 0, "", 1),
+            ("exit 0\n", 0, "", 1),
+        )
+        for pacman_body, pacman_status, expected_out, expected_rc in cases:
+            with self.subTest(pacman_body=pacman_body):
+                result = subprocess.run(
+                    ["bash", "-c", '''
+set -euo pipefail
+source "$1"
+pacman() {
+  if [[ $1 == -Qoq ]]; then
+    PACMAN_BODY_FN
+  fi
+}
+detect_arch_kernel_headers_package 7.3.4-arch1-t2
+'''.replace("PACMAN_BODY_FN", pacman_body.rstrip("\n") + f"; exit {pacman_status}"),
+                     "fixture", str(HELPER)],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(result.returncode, expected_rc, result.stderr)
+                self.assertEqual(result.stdout.strip(), expected_out)
+
     def test_boot_rebuild_selects_limine_and_propagates_failure(self):
         for available, expected in ((True, "limine"), (False, "mkinitcpio -P")):
             for status in (0, 7):
@@ -262,7 +291,7 @@ record_prepared_transport_update abcdef0123456789 ABCDEF0123456789
                     self.assertEqual(result.returncode, 3, result.stderr)
                     self.assertIn("boot-options", result.stdout)
                     self.assertIn("NEXT STEP", result.stdout)
-                    self.assertIn("Restart when convenient, then rerun ./install-omarchy.sh.", result.stdout)
+                    self.assertIn("Restart when convenient, then rerun ./install.sh.", result.stdout)
                     self.assertNotIn("product-ready", result.stdout)
                     self.assertEqual("staged" in result.stdout, not disk)
 
@@ -335,7 +364,7 @@ echo product-ready
                             ["recorded", "retired", "staged", "boot-options"],
                         )
                         self.assertIn("NEXT STEP", result.stdout)
-                        self.assertIn("Restart, then rerun ./install-omarchy.sh.", result.stdout)
+                        self.assertIn("Restart, then rerun ./install.sh.", result.stdout)
 
     def test_transport_entry_gate_requires_explicit_identified_change(self):
         # Execute the real pre-product installer block, replacing only the
