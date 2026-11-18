@@ -23,6 +23,30 @@ FINGER_ARGUMENT = re.compile(r"(?i)^(?:finger[-\s])?([1-5])$")
 INVENTORY_PYTHON = Path("/opt/t2-touchid/.venv/bin/python")
 INVENTORY = Path("/opt/t2-touchid/src/t2-touchid-list.py")
 
+# Admin/diagnostic commands merged into this one entry point so they're
+# discoverable in one place instead of scattered across separate
+# /usr/local/sbin/t2-* binaries. Each target already has its own argparse
+# interface and privilege requirements (most need root, same as before);
+# this just execs it in place under the chosen name, passing through
+# whatever arguments followed the subcommand untouched. Deliberately
+# excludes anything invoked by exact path from systemd units or PAM's
+# pam_exec.so -- those stay as dedicated minimal files.
+SRC_ROOT = Path("/opt/t2-touchid/src")
+ADMIN_TARGETS = {
+    "doctor": SRC_ROOT / "t2-touchid-doctor.py",
+    "manage": SRC_ROOT / "t2-touchid-manage.py",
+    "identities": SRC_ROOT / "t2-touchid-identities.py",
+    "user-map": SRC_ROOT / "t2-touchid-user-map.py",
+    "baseline": SRC_ROOT / "t2-touchid-baseline.py",
+    "inventory": SRC_ROOT / "t2-touchid-inventory.py",
+    "identify-finger": SRC_ROOT / "t2-touchid-identify-finger.py",
+    "provision-catacomb": SRC_ROOT / "t2-touchid-provision-catacomb.py",
+    "post-reboot": SRC_ROOT / "t2-touchid-post-reboot.py",
+    "authority-rebind": SRC_ROOT / "t2-native-authority-rebind.py",
+    "fprint-status": SRC_ROOT / "t2-touchid-fprint-status.py",
+    "enroll-cli": SRC_ROOT / "t2-touchid-enroll.py",
+}
+
 
 class T2TouchError(RuntimeError):
     pass
@@ -277,7 +301,20 @@ def purge(
     return authorized_mutation(command)
 
 
+def _exec_admin(name: str, rest: list[str]) -> int:
+    target = ADMIN_TARGETS[name]
+    try:
+        os.execv(str(target), [str(target), *rest])
+    except OSError as error:
+        print(f"t2-touchid: {error}", file=sys.stderr)
+        return 1
+    raise AssertionError("os.execv returned")  # pragma: no cover
+
+
 def main(argv: list[str] | None = None, *, command: str | None = None) -> int:
+    dispatch_argv = sys.argv[1:] if argv is None else argv
+    if dispatch_argv and dispatch_argv[0] in ADMIN_TARGETS:
+        return _exec_admin(dispatch_argv[0], dispatch_argv[1:])
     # Compatibility and canonical commands share this parser and dispatcher.
     if command is not None and command not in {
         "enroll", "status", "list", "count", "verify", "delete", "purge"
@@ -313,6 +350,13 @@ def main(argv: list[str] | None = None, *, command: str | None = None) -> int:
     purge_parser.add_argument(
         "--resume", action="store_true", help="resume an interrupted purge"
     )
+    for admin_name, admin_target in ADMIN_TARGETS.items():
+        # Listed here only so `t2touch --help`/`t2touch <name> --help` shows
+        # them; main() always execs these directly before parse_args runs.
+        add_parser(
+            admin_name,
+            help=f"admin: {admin_target.stem} (see `t2touch {admin_name} --help`)",
+        ).add_argument("admin_args", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     try:
         user = configured_user()
