@@ -492,9 +492,11 @@ fi
 chmod -R go+rX "$target_dir/.venv"
 
 install -o root -g root -m 0755 "$source_dir/src/t2-aks-tool" /usr/local/sbin/t2-aks-tool
-install -o root -g root -m 0755 \
-  "$source_dir/src/t2-pam-fingerprint-prompt" \
-  /usr/local/sbin/t2-pam-fingerprint-prompt
+# Retired: pam/sudo no longer calls this helper. The dashboard popup shows
+# the same "place your finger" cue now, so the terminal text it printed
+# would just be a redundant duplicate. uninstall.sh still removes it from
+# upgraded machines that installed it before this change.
+rm -f /usr/local/sbin/t2-pam-fingerprint-prompt
 install -o root -g root -m 0755 \
   "$source_dir/src/pam_t2touch_action_prompt.so" \
   /usr/lib/security/pam_t2touch_action_prompt.so
@@ -558,7 +560,15 @@ if [[ ! $target_home =~ ^/[A-Za-z0-9._/-]+$ ]] || \
   exit 2
 fi
 install -d -o root -g root -m 0755 /etc/systemd/system/fprintd.service.d
-printf '[Service]\nBindReadOnlyPaths=%s\n' "$target_home" \
+# ProtectHome=tmpfs also empties /run/user inside this sandbox. Bind the
+# target account's runtime dir back read-only (missing-ok: on a fresh boot
+# fprintd.service can start before the user's session creates it) so the
+# service can reach that session's DMS IPC socket to relay a verify's
+# success/failure to the Touch ID dashboard, and so the desktop success/
+# failure feedback units (desktop_user_unit_command in t2-fprintd.py) can
+# reach that session's D-Bus user bus.
+printf '[Service]\nBindReadOnlyPaths=%s\nBindReadOnlyPaths=-/run/user/%s\n' \
+  "$target_home" "$target_uid" \
   >/etc/systemd/system/fprintd.service.d/05-account-home.conf
 chmod 0644 /etc/systemd/system/fprintd.service.d/05-account-home.conf
 install -d -o root -g root -m 0755 /etc/systemd/system/t2-touchid-adaptive-sync.service.d

@@ -73,7 +73,7 @@ restore_checkout_build_outputs() {
   [[ -d $dir ]] || return 0
   find "$dir" -maxdepth 1 \( \
     -name '*.o' -o -name '*.ko' -o -name '*.mod' -o -name '*.mod.c' \
-    -o -name 't2-aks-tool' -o -name 't2-pam-fingerprint-prompt' \
+    -o -name 't2-aks-tool' \
     -o -name 'pam_t2touch_action_prompt.so' \
     -o -name 'modules.order' -o -name 'Module.symvers' \
   \) -exec chown -- "$owner" {} + 2>/dev/null || true

@@ -81,10 +81,11 @@ class PamAssetTests(unittest.TestCase):
     def test_sudo_skips_fingerprint_until_keybags_are_ready(self):
         sudo_stack = (ROOT / "pam/sudo").read_text()
 
-        self.assertIn("[success=4 default=ignore]", sudo_stack)
-        self.assertIn("[success=ignore default=3]", sudo_stack)
+        self.assertIn("[success=3 default=ignore]", sudo_stack)
+        self.assertIn("[success=ignore default=2]", sudo_stack)
         self.assertIn("t2-pam-fingerprint-ready", sudo_stack)
         self.assertNotIn("t2-pam-unlock", sudo_stack)
+        self.assertNotIn("t2-pam-fingerprint-prompt", sudo_stack)
 
     def test_native_e4_readiness_does_not_require_compatibility_markers(self):
         selected = SimpleNamespace(linux_uid=1000, apple_uid=501)
@@ -142,15 +143,6 @@ class PamAssetTests(unittest.TestCase):
             "local hook='auth optional pam_exec.so quiet seteuid ", installer
         )
 
-    def test_sudo_prompt_warns_against_early_password_input(self):
-        prompt = (ROOT / "src/t2-pam-fingerprint-prompt.c").read_text()
-
-        self.assertNotIn("◎", prompt)
-        self.assertIn("Preparing the fingerprint sensor", prompt)
-        self.assertIn("hear the ready cue", prompt)
-        self.assertNotIn("Touch the fingerprint sensor now", prompt)
-        self.assertIn("Do not type your password until", prompt)
-
     def test_action_marker_wraps_only_the_live_fingerprint_request(self):
         source = (ROOT / "src/pam_t2touch_action_prompt.c").read_text()
 
@@ -158,6 +150,14 @@ class PamAssetTests(unittest.TestCase):
         self.assertIn("◎ Place your finger on the fingerprint reader", source)
         self.assertIn("access(nerd_font_path, R_OK) == 0", source)
         self.assertIn('strcmp(rewritten[index].msg, action_prompt) == 0', source)
+
+    def test_action_marker_suppresses_sudo_text_for_the_dashboard(self):
+        source = (ROOT / "src/pam_t2touch_action_prompt.c").read_text()
+
+        self.assertIn("notify_dms_scan_started", source)
+        self.assertIn("suppress_for_sudo", source)
+        self.assertIn('strcmp((const char *)service_name, "sudo") == 0', source)
+        self.assertNotIn("t2-pam-fingerprint-prompt", source)
         self.assertIn("pam_set_item(pamh, PAM_CONV, &context->upstream)", source)
         self.assertIn("live->conv == marked_conversation", source)
         for name in ("sudo", "polkit-1", "omarchy-lock-fingerprint"):

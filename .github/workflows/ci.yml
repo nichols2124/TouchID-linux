@@ -42,7 +42,7 @@ jobs:
       - name: Check shell scripts
         run: shellcheck install.sh uninstall.sh src/*.sh tools/*.sh tools/macos/*.sh
       - name: Build the userspace tools
-        run: make -C src t2-aks-tool t2-pam-fingerprint-prompt pam_t2touch_action_prompt.so t2-recovery-usb-observer
+        run: make -C src t2-aks-tool pam_t2touch_action_prompt.so t2-recovery-usb-observer
       - name: Check public-tree privacy
         run: |
           tools/privacy-check.sh

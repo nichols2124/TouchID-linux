@@ -2224,7 +2224,6 @@ class BackendRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 else:
                     os.environ["T2_TOUCHID_PORT_FILE"] = old_port_file
 
-        backend.notify_finger_requested = AsyncMock()
         backend.notify_feedback = AsyncMock()
         backend.runtime_authority = mock.Mock(
             return_value=mock.Mock(origin=MODULE.COMPATIBILITY_AUTHORITY)
@@ -2258,7 +2257,6 @@ class BackendRecoveryTests(unittest.IsolatedAsyncioTestCase):
         backend = MODULE.T2Backend.__new__(MODULE.T2Backend)
         backend.port = 50001
         backend.port_from_cache = True
-        backend.notify_finger_requested = AsyncMock()
         backend.notify_feedback = AsyncMock()
         backend.runtime_authority = mock.Mock(
             return_value=mock.Mock(origin=MODULE.COMPATIBILITY_AUTHORITY)
@@ -2283,7 +2281,6 @@ class BackendRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_native_authority_uses_native_owner_without_compatibility_probe(self):
         backend = MODULE.T2Backend.__new__(MODULE.T2Backend)
-        backend.notify_finger_requested = AsyncMock()
         backend.notify_feedback = AsyncMock()
         backend.runtime_authority = mock.Mock(
             return_value=mock.Mock(origin=MODULE.NATIVE_AUTHORITY)

@@ -128,7 +128,7 @@ unchanged.
 | `t2-touchid-manage` | `/usr/local/sbin` | Admin mutations, adaptive sync, and explicit retained-master recovery |
 | `t2-fprint-enrollment-worker`, `t2-fprint-delete-worker` | `/usr/local/sbin` | Root workers launched by the daemon |
 | `t2-aks-tool` | `/usr/local/sbin` | AKS helper used by PAM and keybag units |
-| `t2-pam-unlock`, `t2-pam-fingerprint-ready`, `t2-pam-fingerprint-prompt` | `/usr/local/sbin` | PAM stack helpers |
+| `t2-pam-unlock`, `t2-pam-fingerprint-ready` | `/usr/local/sbin` | PAM stack helpers |
 | `t2-sep-transport-load`, `t2-sep-transport-unload` | `/usr/local/sbin` | Transport unit `ExecStart`/`ExecStop` |
 | `t2-bridge-network-prepare`, `t2-bridge-network-ready` | `/usr/local/sbin` | Bridge network units |
 | `t2-biometric-ready`, `t2-biometric-port-refresh` | `/usr/local/sbin` | Readiness units |

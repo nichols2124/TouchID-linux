@@ -70,7 +70,6 @@ METHOD_RATE_WINDOW_SECONDS = 10.0
 METHOD_RATE_MAX_SENDERS = 64
 DESKTOP_FEEDBACK_UNITS = frozenset(
     {
-        "t2-touchid-alert.service",
         "t2-touchid-success.service",
         "t2-touchid-failure.service",
     }
@@ -184,6 +183,49 @@ def desktop_user_unit_command(unit: object) -> tuple[str, ...] | None:
         "start",
         "--no-block",
         unit,
+    )
+
+
+def desktop_dms_touchid_command(function: str) -> tuple[str, ...] | None:
+    """Return a command relaying a Touch ID dashboard event into the
+    configured desktop user's running shell over its IPC socket.
+
+    DMS's IPC client only needs ``XDG_RUNTIME_DIR``, not a D-Bus session
+    bus, so this validates just the runtime directory's ownership rather
+    than reusing ``desktop_user_unit_command``'s bus-socket check too.
+    """
+
+    if not LINUX_USER:
+        return None
+    try:
+        account = pwd.getpwnam(LINUX_USER)
+    except (KeyError, OSError):
+        return None
+    if account.pw_uid <= 0:
+        return None
+    runtime_dir = Path(f"/run/user/{account.pw_uid}")
+    try:
+        runtime_info = runtime_dir.stat(follow_symlinks=False)
+    except OSError:
+        return None
+    if (
+        not stat.S_ISDIR(runtime_info.st_mode)
+        or runtime_info.st_uid != account.pw_uid
+        or runtime_info.st_mode & 0o077
+    ):
+        return None
+    return (
+        "/usr/bin/runuser",
+        "-u",
+        LINUX_USER,
+        "--",
+        "/usr/bin/env",
+        f"XDG_RUNTIME_DIR={runtime_dir}",
+        "/usr/bin/dms",
+        "ipc",
+        "call",
+        "touchid",
+        function,
     )
 
 
@@ -1458,17 +1500,30 @@ class T2Backend:
         """Keep bounded desktop audio outside the authentication critical path."""
         if not hasattr(self, "feedback_tasks"):
             self.feedback_tasks = set()
-        coroutine = (
-            self.notify_finger_requested() if verdict == "ready"
-            else self.notify_feedback(verdict)
-        )
-        task = asyncio.create_task(coroutine)
-        self.feedback_tasks.add(task)
+
         def finished(completed):
             self.feedback_tasks.discard(completed)
             if not completed.cancelled():
                 completed.exception()  # Best-effort feedback cannot fail auth.
-        task.add_done_callback(finished)
+
+        # "ready" (the sensor is armed and waiting for a touch) has no
+        # audible cue during verification anymore: the Touch ID dashboard's
+        # fingerprint icon already shows that visually, and playing a sound
+        # on top of it is redundant. Enrollment's own "ready" cue is a
+        # separate, unaffected code path (t2-touchid-enroll-test.py).
+        if verdict != "ready":
+            task = asyncio.create_task(self.notify_feedback(verdict))
+            self.feedback_tasks.add(task)
+            task.add_done_callback(finished)
+
+        if verdict in ("verify-match", "verify-no-match", "verify-unknown-error"):
+            dashboard_task = asyncio.create_task(
+                self.notify_touchid_dashboard(
+                    "success" if verdict == "verify-match" else "failure"
+                )
+            )
+            self.feedback_tasks.add(dashboard_task)
+            dashboard_task.add_done_callback(finished)
 
     async def notify_feedback(self, verdict: str) -> None:
         unit = (
@@ -1477,36 +1532,6 @@ class T2Backend:
             else "t2-touchid-failure.service"
         )
         await self.start_user_unit(unit)
-
-    async def notify_finger_requested(self) -> None:
-        """Play the user's requested audible cue without making it auth-critical."""
-        if os.geteuid() == 0:
-            await self.start_user_unit("t2-touchid-alert.service")
-            return
-        else:
-            command = [
-                "/usr/bin/canberra-gtk-play",
-                "--id=message-new-instant",
-                "--description=Touch ID finger requested",
-            ]
-        env = os.environ.copy()
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                start_new_session=True,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env,
-            )
-            _stdout, stderr = await self._bounded_communication(process)
-            if process.returncode != 0:
-                print(
-                    "Touch ID alert failed:",
-                    stderr.decode(errors="replace").strip(),
-                    flush=True,
-                )
-        except (FileNotFoundError, asyncio.TimeoutError):
-            pass
 
     async def start_user_unit(self, unit: str) -> None:
         command = desktop_user_unit_command(unit)
@@ -1523,6 +1548,32 @@ class T2Backend:
             if process.returncode != 0:
                 print(
                     f"Touch ID desktop unit {unit} failed:",
+                    stderr.decode(errors="replace").strip(),
+                    flush=True,
+                )
+        except (FileNotFoundError, asyncio.TimeoutError):
+            pass
+
+    async def notify_touchid_dashboard(self, function: str) -> None:
+        """Relay a verify's terminal outcome to the desktop Touch ID
+        dashboard. Covers every verify caller (sudo, polkit, lock screen,
+        login) uniformly; callers that already show/track their own
+        success or failure (polkit, eventually the lock screen) just get a
+        redundant, idempotent confirmation of the same outcome."""
+        command = desktop_dms_touchid_command(function)
+        if command is None:
+            return
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                start_new_session=True,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _stdout, stderr = await self._bounded_communication(process)
+            if process.returncode != 0:
+                print(
+                    f"Touch ID dashboard relay ({function}) failed:",
                     stderr.decode(errors="replace").strip(),
                     flush=True,
                 )
