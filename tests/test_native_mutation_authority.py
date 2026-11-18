@@ -117,6 +117,82 @@ class CompletedMutationAuthorityTests(unittest.TestCase):
         self.assertEqual(len(heads), 1)
         self.assertEqual(heads[0]["kind"], t2_native_state_recovery.KIND)
 
+    def _enrolled_head(self, *, account_uuid: str, bag_uuid: str, mapping_generation: str):
+        operation_id = "00000000-0000-0000-0000-000000000096"
+        records = [
+            {
+                "operation_id": operation_id,
+                "evidence": {
+                    "baseline": {
+                        "apple_uid": 501,
+                        "account_uuid": account_uuid,
+                        "bag_uuid": bag_uuid,
+                        "mapping_generation": mapping_generation,
+                    },
+                },
+                "record_hash": "2" * 64,
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            root.chmod(0o700)
+            (root / f"{operation_id}.jsonl").touch()
+            with (
+                mock.patch.object(
+                    authority.t2_mutation_registry,
+                    "scan",
+                    return_value=(
+                        authority.t2_mutation_registry.MutationEntry(
+                            "enroll", "complete", False, False
+                        ),
+                    ),
+                ),
+                mock.patch.object(
+                    authority.t2_mutation_journal,
+                    "read",
+                    return_value=records,
+                ),
+            ):
+                return authority._completed_heads(
+                    root,
+                    excluded_operation_id=None,
+                    apple_user_id=501,
+                    account_uuid="account-anchors-identity",
+                    bag_uuid="bag-anchors-identity",
+                    mapping_generation="1" * 64,
+                )
+
+    def test_enroll_tolerates_a_legitimately_changed_mapping_generation(self):
+        # A completed enrollment's mapping_generation is a content-hash
+        # snapshot of users.json at that moment; any later rewrite of that
+        # file (even one that changes nothing it means) must not
+        # permanently block further enrollment for an unrelated reason.
+        # account_uuid/bag_uuid are the real identity anchors here.
+        heads = self._enrolled_head(
+            account_uuid="account-anchors-identity",
+            bag_uuid="bag-anchors-identity",
+            mapping_generation="9" * 64,
+        )
+
+        self.assertEqual(len(heads), 1)
+        self.assertEqual(heads[0]["kind"], "enroll")
+
+    def test_enroll_still_rejects_another_account_or_bag(self):
+        for account_uuid, bag_uuid in (
+            ("different-account", "bag-anchors-identity"),
+            ("account-anchors-identity", "different-bag"),
+        ):
+            with self.subTest(account_uuid=account_uuid, bag_uuid=bag_uuid):
+                with self.assertRaisesRegex(
+                    authority.NativeMutationAuthorityError,
+                    "another native authority",
+                ):
+                    self._enrolled_head(
+                        account_uuid=account_uuid,
+                        bag_uuid=bag_uuid,
+                        mapping_generation="1" * 64,
+                    )
+
     def test_mapping_bound_history_rejects_another_mapping_generation(self):
         for kind in (
             t2_external_inventory_sync.KIND,

@@ -87,8 +87,18 @@ def _completed_heads(
         if (
             not isinstance(baseline, dict)
             or baseline.get("apple_uid") != apple_user_id
-            or baseline.get("mapping_generation") != mapping_generation
             or (
+                mapping_bound
+                and baseline.get("mapping_generation") != mapping_generation
+            )
+            or (
+                # Not comparing mapping_generation here: that pins to the
+                # mapping file's content-hash at the time of that completed
+                # mutation, which any legitimate rewrite of users.json
+                # changes (see the matching note in
+                # t2_user_authority._bound_history). account_uuid/bag_uuid
+                # anchor identity continuity independent of the mapping
+                # file's exact bytes, and are the ones that matter here.
                 not mapping_bound
                 and (
                     baseline.get("account_uuid") != account_uuid
