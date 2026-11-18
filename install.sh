@@ -413,19 +413,20 @@ install -d -o root -g root -m 0700 \
 install -d -o root -g root -m 0700 /run/t2-touchid/workers
 install -o root -g root -m 0755 "$source_dir/src/"*.py "$target_dir/src/"
 install -o root -g root -m 0755 "$source_dir/src/t2_touchid_cli.py" /usr/local/bin/t2touch
-for command in status list count verify; do
+for command in status list count verify \
+  doctor manage identities user-map baseline inventory \
+  identify-finger provision-catacomb post-reboot \
+  authority-rebind fprint-status enroll; do
+  case $command in
+    authority-rebind) sbin_name=t2-native-authority-rebind ;;
+    enroll) sbin_name=t2-touchid-enroll ;;
+    *) sbin_name=t2-touchid-$command ;;
+  esac
   install -o root -g root -m 0755 "$source_dir/src/t2-touchid-client.sh" \
-    "/usr/local/sbin/t2-touchid-$command"
+    "/usr/local/sbin/$sbin_name"
 done
 install -o root -g root -m 0755 "$source_dir/src/t2-touchid-delete.sh" /usr/local/sbin/t2-touchid-delete
 install -o root -g root -m 0755 "$source_dir/src/t2-touchid-purge.sh" /usr/local/sbin/t2-touchid-purge
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-doctor.py" /usr/local/sbin/t2-touchid-doctor
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-inventory.py" /usr/local/sbin/t2-touchid-inventory
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-identities.py" /usr/local/sbin/t2-touchid-identities
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-provision-catacomb.py" /usr/local/sbin/t2-touchid-provision-catacomb
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-identify-finger.py" /usr/local/sbin/t2-touchid-identify-finger
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-manage.py" /usr/local/sbin/t2-touchid-manage
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-baseline.py" /usr/local/sbin/t2-touchid-baseline
 install -d -o root -g root -m 0755 /opt/t2-touchid/bin
 install -o root -g root -m 0755 "$source_dir/src/t2-catacomb-fixture-check.py" /opt/t2-touchid/bin/t2-catacomb-fixture-check
 install -o root -g root -m 0755 "$source_dir/src/t2-acm-preflight.py" /usr/local/sbin/t2-acm-preflight
@@ -435,13 +436,8 @@ install -o root -g root -m 0755 "$source_dir/src/t2-acm-policy-preflight.py" /op
 install -o root -g root -m 0755 "$source_dir/src/t2-acm-authorize-test.py" /opt/t2-touchid/bin/t2-acm-authorize-test
 install -o root -g root -m 0755 "$source_dir/src/t2-acm-identity-secret-test.py" /opt/t2-touchid/bin/t2-acm-identity-secret-test
 install -o root -g root -m 0755 "$source_dir/src/t2-touchid-enroll-test.py" /opt/t2-touchid/bin/t2-touchid-enroll-test
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-enroll.py" /usr/local/sbin/t2-touchid-enroll
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-user-map.py" /usr/local/sbin/t2-touchid-user-map
-install -o root -g root -m 0755 "$source_dir/src/t2-native-authority-rebind.py" /usr/local/sbin/t2-native-authority-rebind
 install -o root -g root -m 0755 "$source_dir/src/t2-touchid-user-broker-gate.py" /usr/local/sbin/t2-touchid-user-broker-gate
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-fprint-status.py" /usr/local/sbin/t2-touchid-fprint-status
 install -o root -g root -m 0755 "$source_dir/src/t2-touchid-fprint-enrollment-gate.py" /usr/local/sbin/t2-touchid-fprint-enrollment-gate
-install -o root -g root -m 0755 "$source_dir/src/t2-touchid-post-reboot.py" /usr/local/sbin/t2-touchid-post-reboot
 install -o root -g root -m 0700 "$source_dir/src/t2-fprint-enrollment-worker.py" /usr/local/sbin/t2-fprint-enrollment-worker
 install -o root -g root -m 0700 "$source_dir/src/t2-fprint-delete-worker.py" /usr/local/sbin/t2-fprint-delete-worker
 install -o root -g root -m 0644 "$source_dir/README.md" "$target_dir/README.md"
