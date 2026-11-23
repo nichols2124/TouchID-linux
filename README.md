@@ -5,7 +5,7 @@ Linux `fprintd` interface.
 
 ## This fork
 
-This is [nichols2124/t2touch-niri-patched](https://github.com/nichols2124/t2touch-niri-patched),
+This is [nichols2124/TouchID-linux](https://github.com/nichols2124/TouchID-linux),
 a private fork originally built for a niri + DMS (dux-shell) setup on
 `MacBookPro16,1`, now installable on any desktop/compositor via
 `sudo ./install.sh` ([see below](#try-it-on-arch); PAM skipped by default
